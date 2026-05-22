@@ -1,33 +1,53 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
-import { CURRENT_USER } from '../data/mockData'
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { api, getToken } from '../lib/api'
 import type { User } from '../types'
 
 type AuthContextType = {
   isLoggedIn: boolean
   currentUser: User | null
-  login: (name?: string) => void
-  logout: () => void
+  isInitializing: boolean
+  login: (name: string, password: string) => Promise<void>
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [isInitializing, setIsInitializing] = useState(true)
 
-  const login = (name?: string) => {
-    const user = name ? { ...CURRENT_USER, name } : CURRENT_USER
+  // 起動時: localStorage にトークンがあればセッションを復元する
+  useEffect(() => {
+    if (!getToken()) {
+      setIsInitializing(false)
+      return
+    }
+    api.auth.me()
+      .then(setCurrentUser)
+      .catch(() => null) // トークン期限切れ等は無視してログアウト状態にする
+      .finally(() => setIsInitializing(false))
+  }, [])
+
+  const login = async (name: string, password: string) => {
+    const user = await api.auth.login(name, password)
     setCurrentUser(user)
-    setIsLoggedIn(true)
   }
 
-  const logout = () => {
+  const logout = async () => {
+    await api.auth.logout()
     setCurrentUser(null)
-    setIsLoggedIn(false)
   }
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, currentUser, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        isLoggedIn: currentUser !== null,
+        currentUser,
+        isInitializing,
+        login,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

@@ -3,12 +3,12 @@ import Header from '../components/layout/Header'
 import BottomNav from '../components/layout/BottomNav'
 import ProfileModal from '../components/mypage/ProfileModal'
 import { useAuth } from '../context/AuthContext'
-import { CURRENT_USER } from '../data/mockData'
 
 export default function MyPage() {
   const { currentUser, logout } = useAuth()
   const [showModal, setShowModal] = useState(false)
-  const user = currentUser ?? CURRENT_USER
+  const user = currentUser
+  if (!user) return null
 
   return (
     <div className="min-h-screen bg-gray-50">

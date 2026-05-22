@@ -8,19 +8,48 @@
 ## 現在のアーキテクチャ（実態）
 
 ```
-nuins-react/
+nuins-react/                  # フロントエンド（React + TypeScript + Vite）
   src/
     pages/          # ページコンポーネント（LoginPage / HomePage / ChatPage / SearchPage / MyPage）
     components/     # UIコンポーネント（layout / home / chat / search / mypage）
     context/        # React Context（AuthContext）
-    data/           # モックデータ（mockData.ts）
+    lib/            # API クライアント（api.ts）
+    data/           # モックデータ（mockData.ts）※ API 移行後に削除予定
     types/          # 型定義（index.ts）
+
+nuins-api/                    # バックエンド（PHP 7.4+、フレームワークなし）
+  index.php                   # フロントコントローラー・ルーター
+  config.php                  # 環境設定（APP_ENV で SQLite/MySQL 切替）
+  src/
+    Database.php              # PDO 接続ファクトリ
+    Migration.php / Seeder.php
+    controllers/              # AuthController / UserController / PostController / ChatController / NewsController / RankingController
 ```
 
-- **バックエンドは現時点で存在しない**。すべてモックデータ（`src/data/mockData.ts`）で動作している。
-- 認証は `AuthContext` で管理するが、実際の認証処理は行わず、ログイン状態をメモリで保持するだけ。
+- バックエンドは `nuins-api/` に PHP で実装済み。ローカルは SQLite、本番は MySQL。
+- 認証は Bearer トークン方式（`Authorization: Bearer <token>`）。`AuthContext` がトークンを `localStorage` に保存・管理する。
+- API クライアントは `src/lib/api.ts` に集約。ページは api.ts を通じてデータを取得する。
+- `src/data/mockData.ts` は API 移行が完了したページから順次削除する。
 - ルーティングは `react-router-dom` v6 の `BrowserRouter` + `Routes`。未認証時は `/login` にリダイレクト。
 - スタイリングは Tailwind CSS のみ使用（CSS Modules・styled-components は使わない）。
+
+### API エンドポイント一覧
+
+| メソッド | パス | 認証 | 機能 |
+|--------|------|:---:|------|
+| POST | `/auth/login` | | ログイン（Bearer トークン返却） |
+| POST | `/auth/logout` | ✓ | ログアウト |
+| GET | `/auth/me` | ✓ | 認証済みユーザー取得 |
+| GET | `/users` | | ユーザー一覧（`?q=` で名前検索） |
+| GET | `/users/{id}` | | ユーザー詳細 |
+| GET | `/posts` | | タイムライン取得 |
+| POST | `/posts` | ✓ | 投稿作成 |
+| POST | `/posts/{id}/like` | ✓ | いいね（トグル） |
+| GET | `/chats` | ✓ | チャットルーム一覧 |
+| GET | `/chats/{id}` | ✓ | チャット詳細（メッセージ含む） |
+| POST | `/chats/{id}/messages` | ✓ | メッセージ送信 |
+| GET | `/news` | | お知らせ一覧 |
+| GET | `/rankings/likes` | | いいねランキング（日間・週間・月間） |
 
 ---
 
@@ -33,11 +62,12 @@ nuins-react/
 **やること：**
 - ルート単位の画面構成（Header / BottomNav の配置、各セクションの組み合わせ）
 - Context からのデータ取得（`useAuth` 等）
-- モックデータのインポートと子コンポーネントへの props 渡し
+- `api.ts` を通じた API 呼び出しと、取得データの子コンポーネントへの props 渡し
 
 **禁止：**
 - 詳細なUIロジックをページに直書き（必ずコンポーネントに切り出す）
 - ビジネスロジック・データ変換をページ内に書く
+- `fetch` を直書きする（必ず `api.ts` の関数を使う）
 
 #### Components（`src/components/`）
 
@@ -54,15 +84,21 @@ nuins-react/
 
 **やること：**
 - アプリ横断の状態管理（認証情報等）
-- ログイン・ログアウト処理
+- ログイン・ログアウト処理（`api.ts` 経由で API を呼び出す）
+- Bearer トークンの `localStorage` への保存・読み込み
 
 **禁止：**
 - UIロジック・スタイル
-- 将来的なAPI呼び出し（バックエンド実装時は別途設計を確認する）
+
+#### API クライアント（`src/lib/api.ts`）
+
+- **API 呼び出しの唯一の窓口**。ページから直接 `fetch` を書かない。
+- 認証ヘッダー（`Authorization: Bearer <token>`）の付与はここで一元管理する。
+- ローカル（`http://localhost:8080`）と本番（`/nuins/api`）の URL 切替は `VITE_API_BASE_URL` 環境変数で制御する。
 
 #### データ（`src/data/mockData.ts`）
 
-- **現時点の唯一のデータソース**。バックエンド実装後は段階的に置き換える想定。
+- API 移行が完了したページから順次削除する。
 - 型は `src/types/index.ts` に集約する。型を追加する際はここに書く。
 
 ---
@@ -100,13 +136,21 @@ nuins-react/
 
 ### 5. 開発コマンド
 
-プロジェクトルートは `nuins-react/` ディレクトリ：
+**フロントエンド**（`nuins-react/` ディレクトリ）：
 
 | コマンド | 用途 |
 |----------|------|
 | `npm run dev` | 開発サーバー起動（http://localhost:5173） |
 | `npm run build` | 本番ビルド（`tsc && vite build`） |
 | `npm run preview` | ビルド結果のプレビュー |
+
+**バックエンド**（`nuins-api/` ディレクトリ）：
+
+| コマンド | 用途 |
+|----------|------|
+| `php -S localhost:8080` | 開発サーバー起動（http://localhost:8080） |
+
+**ローカル開発は両方同時に起動する。**
 
 ---
 
@@ -120,8 +164,9 @@ nuins-react/
 | `src/components/<feature>/` | 特定機能のUIコンポーネントを追加する時 |
 | `src/components/layout/` | ヘッダー・フッター等の共通レイアウト |
 | `src/context/` | アプリ横断の状態が必要な時 |
+| `src/lib/api.ts` | API 関数の追加（ファイルを分割しない） |
 | `src/types/index.ts` | 新しい型定義（ファイルを分割しない） |
-| `src/data/` | モックデータ（バックエンド実装後は削除） |
+| `src/data/` | 移行前のページが参照するモックデータのみ残す |
 
 命名規則：コンポーネントはパスカルケース（`XxxComponent.tsx`）、ユーティリティ・データはキャメルケース。
 
@@ -148,9 +193,9 @@ nuins-react/
 
 ## P2 — 推奨（聞かれた時・明らかな場合のみ）
 
-- バックエンド実装時の API 設計提案（現時点では不要）
 - カスタムフックへの切り出し（同一ロジックが3箇所以上に重複した時）
-- React Query / SWR の導入提案（バックエンド実装後、データフェッチが複雑になった時）
+- React Query / SWR の導入提案（データフェッチが複雑になってきた時）
+- PHP バックエンドの新規エンドポイント追加提案（フロントから必要になった時）
 
 **現時点で不要な設計変更はしない。**
 
@@ -163,6 +208,6 @@ nuins-react/
 | インラインスタイルの多用 | Tailwind で統一するため |
 | `any` 型の使用 | 型安全性が失われる |
 | モックデータをコンポーネントから直接インポート | pages 経由で渡すのが責務上の原則 |
+| ページから直接 `fetch` を書く | `api.ts` に集約するため |
 | 確認なしの大規模リファクタ | 動いているコードを壊すリスク |
-| バックエンド実装の先行 | 現フェーズはフロントエンドのモック実装が優先 |
 | 独自CSS・styled-components の導入 | Tailwind で統一するため |

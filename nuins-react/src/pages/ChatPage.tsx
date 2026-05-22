@@ -1,31 +1,37 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Header from '../components/layout/Header'
 import BottomNav from '../components/layout/BottomNav'
 import ChatBubble from '../components/chat/ChatBubble'
-import { MOCK_CHAT_ROOMS } from '../data/mockData'
-import { CURRENT_USER } from '../data/mockData'
-import type { ChatRoom, Message } from '../types'
+import { api } from '../lib/api'
+import { useAuth } from '../context/AuthContext'
+import type { ChatRoom } from '../types'
+
+type RoomSummary = Omit<ChatRoom, 'messages'>
 
 export default function ChatPage() {
-  const [rooms, setRooms] = useState<ChatRoom[]>(MOCK_CHAT_ROOMS)
+  const { currentUser } = useAuth()
+  const [rooms, setRooms] = useState<RoomSummary[]>([])
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null)
   const [input, setInput] = useState('')
 
-  const sendMessage = () => {
+  useEffect(() => {
+    api.chats.list().then(setRooms).catch(console.error)
+  }, [])
+
+  const openRoom = async (room: RoomSummary) => {
+    const full = await api.chats.get(room.id).catch(console.error)
+    if (full) setSelectedRoom(full)
+  }
+
+  const sendMessage = async () => {
     if (!input.trim() || !selectedRoom) return
-    const newMsg: Message = {
-      id: Date.now(),
-      senderId: CURRENT_USER.id,
-      content: input.trim(),
-      createdAt: new Date().toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
-    }
-    const updatedRooms = rooms.map((r) =>
-      r.id === selectedRoom.id
-        ? { ...r, messages: [...r.messages, newMsg], lastMessage: newMsg.content }
-        : r
+    const msg = await api.chats.sendMessage(selectedRoom.id, input.trim()).catch(console.error)
+    if (!msg) return
+    setSelectedRoom((prev) =>
+      prev
+        ? { ...prev, messages: [...prev.messages, msg], lastMessage: msg.content }
+        : prev
     )
-    setRooms(updatedRooms)
-    setSelectedRoom(updatedRooms.find((r) => r.id === selectedRoom.id) ?? null)
     setInput('')
   }
 
@@ -50,7 +56,7 @@ export default function ChatPage() {
               <ChatBubble
                 key={msg.id}
                 message={msg}
-                isMine={msg.senderId === CURRENT_USER.id}
+                isMine={msg.senderId === currentUser?.id}
               />
             ))}
           </div>
@@ -90,7 +96,7 @@ export default function ChatPage() {
           {rooms.map((room) => (
             <button
               key={room.id}
-              onClick={() => setSelectedRoom(room)}
+              onClick={() => openRoom(room)}
               className="w-full flex items-center gap-3 bg-white rounded-xl p-3 mb-2 shadow-sm border border-gray-100 hover:border-nuins-blue transition text-left"
             >
               <img

@@ -7,7 +7,8 @@ import SearchPage from './pages/SearchPage'
 import MyPage from './pages/MyPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isLoggedIn } = useAuth()
+  const { isLoggedIn, isInitializing } = useAuth()
+  if (isInitializing) return null
   return isLoggedIn ? <>{children}</> : <Navigate to="/login" replace />
 }
 
