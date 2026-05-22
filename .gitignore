@@ -1,0 +1,18 @@
+# 依存パッケージ
+nuins-react/node_modules/
+
+# ビルド成果物
+nuins-react/dist/
+
+# ローカル環境設定
+.env
+.env.local
+*.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ログ
+*.log
+npm-debug.log*
