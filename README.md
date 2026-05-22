@@ -46,3 +46,46 @@ nuins-react/
 ## 現在のログイン
 
 バックエンドは未実装のため、ログイン画面でなにか名前を入力してログインボタンを押すとそのまま入れます。
+
+## デプロイ（リトルサーバー）
+
+デプロイ先URL: https://brothers.wew.jp/nuins/
+
+### 1. ビルド
+
+```bash
+cd nuins-react
+npm run build
+```
+
+`nuins-react/dist/` にビルド済みファイルが生成される。
+
+### 2. FTPアップロード
+
+`dist/` フォルダの中身をすべて、サーバーの `/nuins/` ディレクトリにアップロードする。
+
+```
+（アップロード元）nuins-react/dist/*
+（アップロード先）サーバー: /nuins/
+```
+
+### 3. .htaccess の配置
+
+サーバーの `/nuins/` ディレクトリに以下の内容で `.htaccess` を配置する。  
+ページのリロード・直リンクを正常に動作させるために必要。
+
+```apache
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /nuins/
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /nuins/index.html [L]
+</IfModule>
+```
+
+### 確認
+
+ブラウザで https://brothers.wew.jp/nuins/ にアクセスし、ログイン画面が表示されればデプロイ完了。  
+リロードや直リンクで404が出る場合は `.htaccess` が効いていない可能性がある。
